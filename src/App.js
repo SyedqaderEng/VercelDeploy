@@ -16,8 +16,8 @@ const firebaseConfig = {
 };
 
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
-const GEMINI_API_KEY = "AIzaSyC3aRcnYp5NpQ0lwYns1VzlvMcdbNVDDy4";
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY || "";
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
 export default function App() {
     const [prompt, setPrompt] = useState('');
@@ -37,20 +37,25 @@ export default function App() {
         setResponse('');
 
         try {
-            const res = await fetch(GEMINI_API_URL, {
+            const res = await fetch(OPENAI_API_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`
+                },
                 body: JSON.stringify({
-                    contents: [{
-                        parts: [{ text: prompt }]
-                    }]
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        { role: 'user', content: prompt }
+                    ],
+                    max_tokens: 4096
                 })
             });
 
             const data = await res.json();
 
-            if (res.ok && data.candidates && data.candidates.length > 0) {
-                const generatedText = data.candidates[0]?.content?.parts[0]?.text;
+            if (res.ok && data.choices && data.choices.length > 0) {
+                const generatedText = data.choices[0]?.message?.content;
                 setResponse(generatedText || 'No response generated');
             } else {
                 setError(`API Error: ${JSON.stringify(data.error || data)}`);
@@ -271,7 +276,7 @@ Examples:
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm text-gray-600">Model:</span>
-                                    <span className="text-sm font-mono text-gray-900">gemini-pro</span>
+                                    <span className="text-sm font-mono text-gray-900">gpt-4o-mini (OpenAI)</span>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm text-gray-600">Status:</span>
