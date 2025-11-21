@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Configuration Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">API Configuration Test</h1>
+
+        <div class="space-y-6">
+            <!-- Gemini API Test -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">🤖 Gemini API Test</h2>
+                <div id="gemini-status" class="mb-4 text-gray-600">Click the button to test...</div>
+                <button onclick="testGeminiAPI()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                    Test Gemini API
+                </button>
+                <div id="gemini-result" class="mt-4 p-4 bg-gray-50 rounded-lg hidden">
+                    <h3 class="font-bold text-sm text-gray-700 mb-2">Response:</h3>
+                    <pre class="text-sm text-gray-600 whitespace-pre-wrap"></pre>
+                </div>
+            </div>
+
+            <!-- Firebase Test -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">🔥 Firebase Test</h2>
+                <div id="firebase-status" class="mb-4 text-gray-600">Click the button to test...</div>
+                <button onclick="testFirebase()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                    Test Firebase
+                </button>
+                <div id="firebase-result" class="mt-4 p-4 bg-gray-50 rounded-lg hidden">
+                    <h3 class="font-bold text-sm text-gray-700 mb-2">Details:</h3>
+                    <pre class="text-sm text-gray-600 whitespace-pre-wrap"></pre>
+                </div>
+            </div>
+
+            <!-- Full Integration Test -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">🎯 Full Integration Test</h2>
+                <div id="integration-status" class="mb-4 text-gray-600">Click the button to test both APIs...</div>
+                <button onclick="testAll()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                    Test All APIs
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        const GEMINI_API_KEY = "AIzaSyC3aRcnYp5NpQ0lwYns1VzlvMcdbNVDDy4";
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCYULcYAA-fuugA3QLsGw5_uhDT3-vd9wQ",
+            authDomain: "aidemo-5aac9.firebaseapp.com",
+            projectId: "aidemo-5aac9",
+            storageBucket: "aidemo-5aac9.firebasestorage.app",
+            messagingSenderId: "760932009750",
+            appId: "1:760932009750:web:39ef5614140e1378627237",
+            measurementId: "G-TJ2TG78PZL"
+        };
+
+        window.testGeminiAPI = async function() {
+            const statusDiv = document.getElementById('gemini-status');
+            const resultDiv = document.getElementById('gemini-result');
+            const resultPre = resultDiv.querySelector('pre');
+
+            statusDiv.innerHTML = '⏳ Testing Gemini API...';
+            resultDiv.classList.add('hidden');
+
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: 'Generate a simple HTML button with the text "Hello World"' }]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    statusDiv.innerHTML = '✅ <span class="text-green-600 font-bold">Gemini API is WORKING!</span>';
+                    resultPre.textContent = generatedText;
+                    resultDiv.classList.remove('hidden');
+                } else {
+                    statusDiv.innerHTML = '❌ <span class="text-red-600 font-bold">Gemini API Error</span>';
+                    resultPre.textContent = JSON.stringify(data, null, 2);
+                    resultDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '❌ <span class="text-red-600 font-bold">Connection Error</span>';
+                resultPre.textContent = error.message;
+                resultDiv.classList.remove('hidden');
+            }
+        };
+
+        window.testFirebase = async function() {
+            const statusDiv = document.getElementById('firebase-status');
+            const resultDiv = document.getElementById('firebase-result');
+            const resultPre = resultDiv.querySelector('pre');
+
+            statusDiv.innerHTML = '⏳ Testing Firebase...';
+            resultDiv.classList.add('hidden');
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+
+                statusDiv.innerHTML = '⏳ Attempting anonymous sign-in...';
+
+                const userCredential = await signInAnonymously(auth);
+                const user = userCredential.user;
+
+                statusDiv.innerHTML = '✅ <span class="text-green-600 font-bold">Firebase is WORKING!</span>';
+                resultPre.textContent = `Successfully authenticated!\nUser ID: ${user.uid}\nProject: ${firebaseConfig.projectId}`;
+                resultDiv.classList.remove('hidden');
+
+            } catch (error) {
+                statusDiv.innerHTML = '❌ <span class="text-red-600 font-bold">Firebase Error</span>';
+                resultPre.textContent = `Error Code: ${error.code}\nMessage: ${error.message}`;
+                resultDiv.classList.remove('hidden');
+            }
+        };
+
+        window.testAll = async function() {
+            const statusDiv = document.getElementById('integration-status');
+            statusDiv.innerHTML = '⏳ Running all tests...';
+
+            await window.testGeminiAPI();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await window.testFirebase();
+
+            statusDiv.innerHTML = '✅ <span class="text-green-600 font-bold">All tests completed! Check results above.</span>';
+        };
+    </script>
+</body>
+</html>
