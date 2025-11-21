@@ -1,30 +1,56 @@
-import React, { useState } from 'react';
-import { LucideZap, LucideSparkles, LucideLoader2, LucideCheckCircle, LucideAlertCircle, LucideDownload, LucideCode } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+    LucideZap, LucideSparkles, LucideLoader2, LucideCheckCircle, LucideAlertCircle,
+    LucideDownload, LucideCode, LucideCopy, LucideCheck, LucideTrash2, LucideHistory,
+    LucideGlobe, LucideMail, LucideFileText, LucideTerminal, LucideStar, LucideX,
+    LucideChevronRight, LucideBookmark
+} from 'lucide-react';
 
-// --- Configuration & Constants ---
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-// ..Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCYULcYAA-fuugA3QLsGw5_uhDT3-vd9wQ",
-  authDomain: "aidemo-5aac9.firebaseapp.com",
-  projectId: "aidemo-5aac9",
-  storageBucket: "aidemo-5aac9.firebasestorage.app",
-  messagingSenderId: "760932009750",
-  appId: "1:760932009750:web:39ef5614140e1378627237",
-  measurementId: "G-TJ2TG78PZL"
-};
-
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
+// --- Configuration ---
 const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY || "";
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+
+// --- Generation Modes ---
+const MODES = [
+    { id: 'website', name: 'Website', icon: LucideGlobe, color: 'indigo', prompt: 'Create a complete, responsive HTML website with Tailwind CSS. Output only valid HTML starting with <!DOCTYPE html>.' },
+    { id: 'email', name: 'Email', icon: LucideMail, color: 'blue', prompt: 'Write a professional email.' },
+    { id: 'blog', name: 'Blog Post', icon: LucideFileText, color: 'green', prompt: 'Write a detailed, engaging blog post with proper formatting.' },
+    { id: 'code', name: 'Code', icon: LucideTerminal, color: 'purple', prompt: 'Write clean, well-commented code.' },
+];
 
 export default function App() {
     const [prompt, setPrompt] = useState('');
     const [response, setResponse] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [viewMode, setViewMode] = useState('preview'); // 'preview' or 'code'
+    const [viewMode, setViewMode] = useState('preview');
+    const [genMode, setGenMode] = useState('website');
+    const [history, setHistory] = useState([]);
+    const [showHistory, setShowHistory] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const [savedPrompts, setSavedPrompts] = useState([]);
+
+    // Load history and saved prompts from localStorage
+    useEffect(() => {
+        const savedHistory = localStorage.getItem('ai-builder-history');
+        const savedFavorites = localStorage.getItem('ai-builder-favorites');
+        if (savedHistory) setHistory(JSON.parse(savedHistory));
+        if (savedFavorites) setSavedPrompts(JSON.parse(savedFavorites));
+    }, []);
+
+    // Save history to localStorage
+    const saveToHistory = (promptText, responseText, mode) => {
+        const newItem = {
+            id: Date.now(),
+            prompt: promptText,
+            response: responseText,
+            mode: mode,
+            timestamp: new Date().toISOString()
+        };
+        const newHistory = [newItem, ...history].slice(0, 20); // Keep last 20
+        setHistory(newHistory);
+        localStorage.setItem('ai-builder-history', JSON.stringify(newHistory));
+    };
 
     const generateContent = async () => {
         if (!prompt.trim()) {
@@ -36,6 +62,9 @@ export default function App() {
         setError('');
         setResponse('');
 
+        const currentMode = MODES.find(m => m.id === genMode);
+        const systemPrompt = currentMode?.prompt || '';
+
         try {
             const res = await fetch(OPENAI_API_URL, {
                 method: 'POST',
@@ -46,6 +75,7 @@ export default function App() {
                 body: JSON.stringify({
                     model: 'gpt-4o-mini',
                     messages: [
+                        { role: 'system', content: systemPrompt },
                         { role: 'user', content: prompt }
                     ],
                     max_tokens: 4096
@@ -57,6 +87,7 @@ export default function App() {
             if (res.ok && data.choices && data.choices.length > 0) {
                 const generatedText = data.choices[0]?.message?.content;
                 setResponse(generatedText || 'No response generated');
+                saveToHistory(prompt, generatedText, genMode);
             } else {
                 setError(`API Error: ${JSON.stringify(data.error || data)}`);
             }
@@ -67,74 +98,176 @@ export default function App() {
         }
     };
 
+    const copyToClipboard = async () => {
+        await navigator.clipboard.writeText(response);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
     const downloadCode = () => {
-        const blob = new Blob([response], { type: 'text/html' });
+        const ext = genMode === 'website' ? 'html' : genMode === 'code' ? 'txt' : 'md';
+        const blob = new Blob([response], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'generated-code.html';
+        a.download = `generated-${genMode}.${ext}`;
         a.click();
         URL.revokeObjectURL(url);
     };
 
+    const savePrompt = () => {
+        if (!prompt.trim()) return;
+        const newFavorites = [...savedPrompts, { id: Date.now(), text: prompt, mode: genMode }].slice(0, 10);
+        setSavedPrompts(newFavorites);
+        localStorage.setItem('ai-builder-favorites', JSON.stringify(newFavorites));
+    };
+
+    const loadFromHistory = (item) => {
+        setPrompt(item.prompt);
+        setResponse(item.response);
+        setGenMode(item.mode);
+        setShowHistory(false);
+    };
+
+    const clearHistory = () => {
+        setHistory([]);
+        localStorage.removeItem('ai-builder-history');
+    };
+
     const isHTMLResponse = response.trim().startsWith('<!DOCTYPE') || response.trim().startsWith('<html');
+    const currentMode = MODES.find(m => m.id === genMode);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
             {/* Header */}
-            <header className="bg-white border-b border-gray-200 shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                                <LucideZap size={24} className="text-white" />
+                            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/25">
+                                <LucideZap size={20} className="text-white" />
                             </div>
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-900">AI Builder</h1>
-                                <p className="text-sm text-gray-500">Powered by Gemini AI</p>
+                                <h1 className="text-xl font-bold text-white">AI Builder</h1>
+                                <p className="text-xs text-purple-300">Powered by GPT-4o</p>
                             </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                            <div className="flex items-center space-x-1 bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
-                                <LucideCheckCircle size={16} />
-                                <span>API Ready</span>
+                        <div className="flex items-center space-x-3">
+                            <button
+                                onClick={() => setShowHistory(!showHistory)}
+                                className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm font-medium transition-all"
+                            >
+                                <LucideHistory size={16} />
+                                <span className="hidden sm:inline">History</span>
+                                {history.length > 0 && (
+                                    <span className="bg-purple-500 text-xs px-2 py-0.5 rounded-full">{history.length}</span>
+                                )}
+                            </button>
+                            <div className="flex items-center space-x-1 bg-green-500/20 text-green-400 px-3 py-1.5 rounded-full text-sm font-medium">
+                                <LucideCheckCircle size={14} />
+                                <span className="hidden sm:inline">Ready</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
 
+            {/* History Sidebar */}
+            {showHistory && (
+                <div className="fixed inset-0 z-50 flex justify-end">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
+                    <div className="relative w-full max-w-md bg-slate-900 border-l border-white/10 h-full overflow-y-auto">
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-xl font-bold text-white">Generation History</h2>
+                                <div className="flex items-center space-x-2">
+                                    {history.length > 0 && (
+                                        <button onClick={clearHistory} className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg">
+                                            <LucideTrash2 size={18} />
+                                        </button>
+                                    )}
+                                    <button onClick={() => setShowHistory(false)} className="p-2 text-gray-400 hover:bg-white/10 rounded-lg">
+                                        <LucideX size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                            {history.length === 0 ? (
+                                <p className="text-gray-500 text-center py-8">No history yet</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {history.map((item) => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => loadFromHistory(item)}
+                                            className="w-full text-left p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-all group"
+                                        >
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs px-2 py-1 bg-purple-500/20 text-purple-300 rounded capitalize">{item.mode}</span>
+                                                <span className="text-xs text-gray-500">{new Date(item.timestamp).toLocaleDateString()}</span>
+                                            </div>
+                                            <p className="text-sm text-gray-300 line-clamp-2">{item.prompt}</p>
+                                            <div className="flex items-center text-purple-400 text-xs mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <LucideChevronRight size={14} />
+                                                <span>Load this</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Main Content */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Mode Selector */}
+                <div className="flex flex-wrap gap-3 mb-8 justify-center">
+                    {MODES.map((mode) => {
+                        const Icon = mode.icon;
+                        const isActive = genMode === mode.id;
+                        return (
+                            <button
+                                key={mode.id}
+                                onClick={() => setGenMode(mode.id)}
+                                className={`flex items-center space-x-2 px-5 py-3 rounded-xl font-medium transition-all ${
+                                    isActive
+                                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-purple-500/25 scale-105'
+                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                                }`}
+                            >
+                                <Icon size={18} />
+                                <span>{mode.name}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Input Section */}
-                    <div className="space-y-6">
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-                            <div className="flex items-center space-x-2 mb-4">
-                                <LucideSparkles className="text-indigo-600" size={24} />
-                                <h2 className="text-xl font-bold text-gray-900">Your Prompt</h2>
+                    <div className="space-y-4">
+                        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center space-x-2">
+                                    <LucideSparkles className="text-purple-400" size={20} />
+                                    <h2 className="text-lg font-bold text-white">Your Prompt</h2>
+                                </div>
+                                <span className="text-xs text-gray-500">{prompt.length} chars</span>
                             </div>
 
                             <textarea
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
-                                placeholder="Enter your prompt here...
-
-Examples:
-• Build a landing page for a coffee shop
-• Create a to-do list app
-• Design a pricing page for a SaaS product
-• Write a blog post about AI
-• Explain quantum computing"
-                                className="w-full h-64 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none text-gray-700 placeholder-gray-400"
+                                placeholder={`Describe what you want to create...\n\nExample: "${genMode === 'website' ? 'A modern portfolio website for a photographer' : genMode === 'email' ? 'A follow-up email after a job interview' : genMode === 'blog' ? 'An article about the future of AI' : 'A Python function to sort a list'}"`}
+                                className="w-full h-48 p-4 bg-black/30 border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-gray-200 placeholder-gray-500"
                                 disabled={loading}
                             />
 
-                            <div className="mt-4 flex space-x-3">
+                            <div className="mt-4 flex flex-col sm:flex-row gap-3">
                                 <button
                                     onClick={generateContent}
                                     disabled={loading || !prompt.trim()}
-                                    className="flex-1 flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-4 rounded-xl font-bold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105"
+                                    className="flex-1 flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-4 rounded-xl font-bold shadow-lg shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98]"
                                 >
                                     {loading ? (
                                         <>
@@ -144,39 +277,66 @@ Examples:
                                     ) : (
                                         <>
                                             <LucideSparkles size={20} />
-                                            <span>Generate with AI</span>
+                                            <span>Generate</span>
                                         </>
                                     )}
+                                </button>
+                                <button
+                                    onClick={savePrompt}
+                                    disabled={!prompt.trim()}
+                                    className="px-4 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all disabled:opacity-50"
+                                    title="Save prompt"
+                                >
+                                    <LucideBookmark size={20} />
                                 </button>
                             </div>
 
                             {error && (
-                                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start space-x-3">
-                                    <LucideAlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium text-red-900">Error</p>
-                                        <p className="text-sm text-red-700 mt-1">{error}</p>
-                                    </div>
+                                <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start space-x-3">
+                                    <LucideAlertCircle className="text-red-400 flex-shrink-0 mt-0.5" size={20} />
+                                    <p className="text-sm text-red-300">{error}</p>
                                 </div>
                             )}
                         </div>
 
-                        {/* Example Prompts */}
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-                            <h3 className="font-bold text-gray-900 mb-3">Try these examples:</h3>
-                            <div className="space-y-2">
+                        {/* Saved Prompts */}
+                        {savedPrompts.length > 0 && (
+                            <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+                                <h3 className="font-bold text-white mb-3 flex items-center space-x-2">
+                                    <LucideStar size={16} className="text-yellow-400" />
+                                    <span>Saved Prompts</span>
+                                </h3>
+                                <div className="space-y-2">
+                                    {savedPrompts.map((item) => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => { setPrompt(item.text); setGenMode(item.mode); }}
+                                            className="w-full text-left px-4 py-3 bg-black/20 hover:bg-black/40 rounded-lg text-sm text-gray-300 hover:text-white transition-colors border border-white/5 truncate"
+                                        >
+                                            {item.text}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Quick Examples */}
+                        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+                            <h3 className="font-bold text-white mb-3">Quick Examples</h3>
+                            <div className="grid grid-cols-1 gap-2">
                                 {[
-                                    'Build a modern landing page for a fitness app',
-                                    'Create a contact form with validation',
-                                    'Design a pricing table with 3 tiers',
-                                    'Write a product description for smart headphones'
+                                    { text: 'A SaaS landing page with pricing', mode: 'website' },
+                                    { text: 'Professional thank you email', mode: 'email' },
+                                    { text: 'How AI is changing healthcare', mode: 'blog' },
+                                    { text: 'React hook for API calls', mode: 'code' },
                                 ].map((example, idx) => (
                                     <button
                                         key={idx}
-                                        onClick={() => setPrompt(example)}
-                                        className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-indigo-50 rounded-lg text-sm text-gray-700 hover:text-indigo-700 transition-colors border border-gray-200 hover:border-indigo-300"
+                                        onClick={() => { setPrompt(example.text); setGenMode(example.mode); }}
+                                        className="flex items-center justify-between px-4 py-3 bg-black/20 hover:bg-purple-500/20 rounded-lg text-sm text-gray-300 hover:text-white transition-all border border-white/5 hover:border-purple-500/30 group"
                                     >
-                                        {example}
+                                        <span>{example.text}</span>
+                                        <span className="text-xs px-2 py-1 bg-white/10 rounded capitalize opacity-50 group-hover:opacity-100">{example.mode}</span>
                                     </button>
                                 ))}
                             </div>
@@ -184,83 +344,85 @@ Examples:
                     </div>
 
                     {/* Output Section */}
-                    <div className="space-y-6">
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-                            <div className="p-6 border-b border-gray-200 bg-gray-50">
+                    <div className="space-y-4">
+                        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
+                            <div className="p-4 border-b border-white/10 bg-black/20">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-2">
-                                        <LucideCheckCircle className="text-green-600" size={24} />
-                                        <h2 className="text-xl font-bold text-gray-900">AI Response</h2>
-                                    </div>
-
+                                    <h2 className="text-lg font-bold text-white">Output</h2>
                                     {response && (
                                         <div className="flex items-center space-x-2">
                                             {isHTMLResponse && (
-                                                <div className="flex items-center space-x-1 bg-gray-200 rounded-lg p-1">
+                                                <div className="flex items-center space-x-1 bg-black/30 rounded-lg p-1">
                                                     <button
                                                         onClick={() => setViewMode('preview')}
-                                                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                                                            viewMode === 'preview' ? 'bg-white text-indigo-600 shadow' : 'text-gray-600 hover:text-gray-900'
+                                                        className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                                                            viewMode === 'preview' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
                                                         }`}
                                                     >
                                                         Preview
                                                     </button>
                                                     <button
                                                         onClick={() => setViewMode('code')}
-                                                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                                                            viewMode === 'code' ? 'bg-white text-indigo-600 shadow' : 'text-gray-600 hover:text-gray-900'
+                                                        className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                                                            viewMode === 'code' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
                                                         }`}
                                                     >
                                                         Code
                                                     </button>
                                                 </div>
                                             )}
-
-                                            {isHTMLResponse && (
-                                                <button
-                                                    onClick={downloadCode}
-                                                    className="flex items-center space-x-1 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-                                                >
-                                                    <LucideDownload size={16} />
-                                                    <span>Download</span>
-                                                </button>
-                                            )}
+                                            <button
+                                                onClick={copyToClipboard}
+                                                className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-all"
+                                                title="Copy to clipboard"
+                                            >
+                                                {copied ? <LucideCheck size={18} className="text-green-400" /> : <LucideCopy size={18} />}
+                                            </button>
+                                            <button
+                                                onClick={downloadCode}
+                                                className="p-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-white transition-all"
+                                                title="Download"
+                                            >
+                                                <LucideDownload size={18} />
+                                            </button>
                                         </div>
                                     )}
                                 </div>
                             </div>
 
-                            <div className="relative">
+                            <div className="relative min-h-[500px]">
                                 {!response && !loading && (
-                                    <div className="h-96 flex flex-col items-center justify-center text-gray-400 p-8">
-                                        <LucideSparkles size={64} className="mb-4 opacity-20" />
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 p-8">
+                                        <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                                            <LucideSparkles size={32} className="opacity-50" />
+                                        </div>
                                         <p className="text-center">Your AI-generated content will appear here</p>
-                                        <p className="text-sm text-center mt-2">Enter a prompt and click "Generate with AI" to start</p>
                                     </div>
                                 )}
 
                                 {loading && (
-                                    <div className="h-96 flex flex-col items-center justify-center">
-                                        <LucideLoader2 size={48} className="text-indigo-600 animate-spin mb-4" />
-                                        <p className="text-gray-600 font-medium">AI is thinking...</p>
-                                        <p className="text-sm text-gray-500 mt-2">This may take a few seconds</p>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <div className="relative">
+                                            <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                                            <LucideZap size={24} className="absolute inset-0 m-auto text-purple-400" />
+                                        </div>
+                                        <p className="text-gray-400 font-medium mt-4">AI is creating...</p>
+                                        <p className="text-sm text-gray-600 mt-1">This may take a few seconds</p>
                                     </div>
                                 )}
 
                                 {response && !loading && (
                                     <>
                                         {isHTMLResponse && viewMode === 'preview' ? (
-                                            <div className="h-[600px] overflow-auto">
-                                                <iframe
-                                                    srcDoc={response}
-                                                    title="preview"
-                                                    className="w-full h-full border-0"
-                                                    sandbox="allow-scripts"
-                                                />
-                                            </div>
+                                            <iframe
+                                                srcDoc={response}
+                                                title="preview"
+                                                className="w-full h-[500px] bg-white"
+                                                sandbox="allow-scripts"
+                                            />
                                         ) : (
-                                            <div className="p-6 max-h-[600px] overflow-auto">
-                                                <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono bg-gray-50 p-4 rounded-lg">
+                                            <div className="p-6 h-[500px] overflow-auto">
+                                                <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
                                                     {response}
                                                 </pre>
                                             </div>
@@ -270,20 +432,20 @@ Examples:
                             </div>
                         </div>
 
-                        {/* API Status */}
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-                            <h3 className="font-bold text-gray-900 mb-3">API Status</h3>
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-600">Model:</span>
-                                    <span className="text-sm font-mono text-gray-900">gpt-4o-mini (OpenAI)</span>
+                        {/* Stats Card */}
+                        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+                            <div className="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                    <p className="text-2xl font-bold text-white">{history.length}</p>
+                                    <p className="text-xs text-gray-500">Generations</p>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-600">Status:</span>
-                                    <span className="flex items-center space-x-1 text-sm font-medium text-green-600">
-                                        <LucideCheckCircle size={14} />
-                                        <span>Connected</span>
-                                    </span>
+                                <div>
+                                    <p className="text-2xl font-bold text-white">{savedPrompts.length}</p>
+                                    <p className="text-xs text-gray-500">Saved</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-purple-400">GPT-4o</p>
+                                    <p className="text-xs text-gray-500">Model</p>
                                 </div>
                             </div>
                         </div>
@@ -292,9 +454,9 @@ Examples:
             </main>
 
             {/* Footer */}
-            <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-12 border-t border-gray-200">
+            <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-8 border-t border-white/10">
                 <p className="text-center text-sm text-gray-500">
-                    Powered by Google Gemini AI • Test your AI generation capabilities
+                    AI Builder • Powered by OpenAI GPT-4o-mini • Build anything with AI
                 </p>
             </footer>
         </div>
