@@ -17,7 +17,7 @@ const firebaseConfig = {
 
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
 const GEMINI_API_KEY = "AIzaSyC3aRcnYp5NpQ0lwYns1VzlvMcdbNVDDy4";
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
 export default function App() {
     const [prompt, setPrompt] = useState('');
@@ -271,7 +271,7 @@ Examples:
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm text-gray-600">Model:</span>
-                                    <span className="text-sm font-mono text-gray-900">gemini-1.5-flash</span>
+                                    <span className="text-sm font-mono text-gray-900">gemini-1.5-flash-latest</span>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm text-gray-600">Status:</span>
