@@ -7,7 +7,7 @@ import { LucideLayoutDashboard, LucideCode, LucideSettings, LucideLogOut, Lucide
 // --- Configuration & Constants ---
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// Your web app's Firebase configuration
+// ..Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCYULcYAA-fuugA3QLsGw5_uhDT3-vd9wQ",
   authDomain: "aidemo-5aac9.firebaseapp.com",
