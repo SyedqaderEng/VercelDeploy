@@ -2,6 +2,20 @@ import React, { useState } from 'react';
 import { LucideZap, LucideSparkles, LucideLoader2, LucideCheckCircle, LucideAlertCircle, LucideDownload, LucideCode } from 'lucide-react';
 
 // --- Configuration & Constants ---
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// ..Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCYULcYAA-fuugA3QLsGw5_uhDT3-vd9wQ",
+  authDomain: "aidemo-5aac9.firebaseapp.com",
+  projectId: "aidemo-5aac9",
+  storageBucket: "aidemo-5aac9.firebasestorage.app",
+  messagingSenderId: "760932009750",
+  appId: "1:760932009750:web:39ef5614140e1378627237",
+  measurementId: "G-TJ2TG78PZL"
+};
+
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
 const GEMINI_API_KEY = "AIzaSyC3aRcnYp5NpQ0lwYns1VzlvMcdbNVDDy4";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`;
 
